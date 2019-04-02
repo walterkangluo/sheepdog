@@ -83,10 +83,11 @@ int create_listen_ports(const char *bindaddr, int port,
 	}
 
 	for (res = res0; res; res = res->ai_next) {
+		// 1.
 		fd = socket(res->ai_family, res->ai_socktype, res->ai_protocol);
 		if (fd < 0)
 			continue;
-
+        // 2.
 		opt = 1;
 		ret = setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, &opt,
 				 sizeof(opt));
@@ -102,14 +103,14 @@ int create_listen_ports(const char *bindaddr, int port,
 				continue;
 			}
 		}
-
+        // 3.
 		ret = bind(fd, res->ai_addr, res->ai_addrlen);
 		if (ret) {
 			sd_err("failed to bind server socket: %m");
 			close(fd);
 			continue;
 		}
-
+        // 4.
 		ret = listen(fd, SOMAXCONN);
 		if (ret) {
 			sd_err("failed to listen on server socket: %m");
@@ -273,7 +274,7 @@ rewrite:
 		 * Since we set timeout for write, we'll get EAGAIN even for
 		 * blocking sockfd.
 		 */
-		if (errno == EAGAIN && repeat &&
+		if (errno == EAGAIN && repeat &&   // 非阻塞操作中的常见错误
 		    (need_retry == NULL || need_retry(epoch))) {
 			repeat--;
 			goto rewrite;

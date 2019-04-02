@@ -838,18 +838,18 @@ int main(int argc, char **argv)
 	struct stat logdir_st;
 	enum log_dst_type log_dst_type;
 
-	sys->cinfo.flags |= SD_CLUSTER_FLAG_AUTO_VNODES;
+	sys->cinfo.flags |= SD_CLUSTER_FLAG_AUTO_VNODES;  // vnode 策略
 	sys->node_status = SD_NODE_STATUS_INITIALIZATION;
 
 	sys->rthrottling.max_exec_count = 0;
 	sys->rthrottling.queue_work_interval = 0;
 	sys->rthrottling.throttling = false;
-
+    // 处理各种崩溃异常的注册处理函数
 	install_crash_handler(crash_handler);
 	signal(SIGPIPE, SIG_IGN);
-
+    // 捕获signal信号处理，信号发生时发开并创建日志文件
 	install_sighandler(SIGHUP, sighup_handler, false);
-
+    // 解析命令行参数
 	long_options = build_long_options(sheep_options);
 	short_options = build_short_options(sheep_options);
 	while ((ch = getopt_long(argc, argv, short_options, long_options,
@@ -1072,7 +1072,7 @@ int main(int argc, char **argv)
 			exit(1);
 		}
 	}
-
+    // 创建基本目录
 	ret = init_base_path(dirp);
 	if (ret)
 		exit(1);
@@ -1092,7 +1092,7 @@ int main(int argc, char **argv)
 
 	if (daemonize && log_dst_type == LOG_DST_STDOUT)
 		daemonize = false;
-
+    // 创建sheep进程并对基本目录上锁
 	if (lock_and_daemon(daemonize, dir)) {
 		free(argp);
 		goto cleanup_dir;
@@ -1102,36 +1102,37 @@ int main(int argc, char **argv)
 	sd_xio_init();
 	xio_init_main_ctx();
 #endif
-
+    // 日志操作
 	ret = log_init(program_name, log_dst_type, log_level, log_path);
 	if (ret) {
 		free(argp);
 		goto cleanup_dir;
 	}
-
+    // 初始化obj,epoch,config路径
 	ret = init_global_pathnames(dir, argp);
 	free(argp);
 	if (ret)
 		goto cleanup_log;
-
+    // 创建epoll事件触发机制
 	ret = init_event(EPOLL_SIZE);
 	if (ret)
 		goto cleanup_log;
-
+    // 初始化节点配置文件
 	ret = init_node_config_file();
 	if (ret)
 		goto cleanup_log;
-
+    // 初始化配置文件
 	ret = init_config_file();
 	if (ret)
 		goto cleanup_log;
-
+    // 创建网络连接或者io操作的监听端口，监听客户端qemu的连接请求listen_handler
+    // 并于client_handler绑定
 	ret = create_listen_port(bindaddr, port);
 	if (ret)
 		goto cleanup_log;
 
 #ifndef HAVE_ACCELIO
-	if (io_addr && create_listen_port(io_addr, io_port))
+	if (io_addr && create_listen_port(io_addr, io_port))  // 端口是7000
 		goto cleanup_log;
 #else
 	if (io_addr) {
@@ -1151,13 +1152,13 @@ int main(int argc, char **argv)
 		goto cleanup_log;
 	}
 #endif
-
+    // 同一台主机的进程间通信，创建socket和绑定端口
 	ret = init_unix_domain_socket(dir);
 	if (ret)
 		goto cleanup_log;
-
+    // 本地请求的初始化，注册local_req_handler事件：local_req_handler
 	local_request_init();
-
+    // 信号事件的初始化：signal_handler
 	ret = init_signal();
 	if (ret)
 		goto cleanup_log;
@@ -1166,13 +1167,13 @@ int main(int argc, char **argv)
 	ret = init_disk_space(dir);
 	if (ret)
 		goto cleanup_log;
-
+    // 创建集群
 	ret = create_cluster(port, zone, nr_vnodes, explicit_addr);
 	if (ret) {
 		sd_err("failed to create sheepdog cluster");
 		goto cleanup_log;
 	}
-
+    // 监控节点连接状态
 	ret = start_node_connectivity_monitor();
 	if (ret)
 		goto cleanup_journal;
@@ -1190,14 +1191,15 @@ int main(int argc, char **argv)
 			/* internal journal */
 			memcpy(jpath, dir, strlen(dir));
 		sd_debug("%s, %"PRIu64", %d", jpath, jsize, jskip);
-		ret = journal_file_init(jpath, jsize, jskip);
+		// 创建journal文件，根据条件判断是否需要恢复
+		ret = journal_file_init(jpath, jsize, jskip);  
 		if (ret)
 			goto cleanup_cluster;
 	}
 
 	init_fec();
 
-	/*
+	/* 创建工作队列，分为三种：单线程，动态线程，固定个数的线程
 	 * After this function, we are multi-threaded.
 	 *
 	 * Put those init functions that need single threaded environment, for
@@ -1211,7 +1213,7 @@ int main(int argc, char **argv)
 	ret = sockfd_init();
 	if (ret)
 		goto cleanup_journal;
-
+    // 初始化存储驱动
 	ret = init_store_driver(sys->gateway_only);
 	if (ret)
 		goto cleanup_journal;

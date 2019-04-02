@@ -1062,7 +1062,7 @@ static void listen_handler(int listen_fd, int events, void *data)
 		close(fd);
 		return;
 	}
-
+    // 创建client_handler事件，接受客户端发送的命令请求
 	ret = register_event(fd, client_handler, ci);
 	if (ret) {
 		destroy_client(ci);
@@ -1086,7 +1086,7 @@ static int create_listen_port_fn(int fd, void *data)
 	new_fd = xzalloc(sizeof(*new_fd));
 	new_fd->fd = fd;
 	list_add_tail(&new_fd->list, &listening_fd_list);
-
+    // 注册事件
 	return register_event(fd, listen_handler, data);
 }
 

@@ -401,17 +401,17 @@ int init_disk_space(const char *base_path)
 	int ret = SD_RES_SUCCESS;
 	uint64_t space_size = 0, mds;
 	struct statvfs fs;
-
+    // 仅仅使用gateway ？
 	if (sys->gateway_only)
 		goto out;
 
 	/* We need to init md even we don't need to update space */
-	mds = md_init_space();
+	mds = md_init_space();  // 返回默认的 md.space
 
 	/* If it is restarted */
-	ret = get_node_space(&space_size);
-	if (space_size != 0) {
-		sys->disk_space = space_size;
+	ret = get_node_space(&space_size);  // 返回 config.space
+	if (space_size != 0) {  // 已经被设置过
+		sys->disk_space = space_size;  
 		goto out;
 	}
 
@@ -420,9 +420,10 @@ int init_disk_space(const char *base_path)
 		ret = set_node_space(sys->disk_space);
 		goto out;
 	}
-
+    // 如果配置文件中已经设置了，以配置文件的值设置sys->disk_space
+    // 否则，通过vfstate和路径查询容量，赋值给sys->disk_spac和config.space
 	if (mds) {
-		sys->disk_space = mds;
+		sys->disk_space = mds;  
 	} else {
 		ret = statvfs(base_path, &fs);
 		if (ret < 0) {
@@ -432,7 +433,7 @@ int init_disk_space(const char *base_path)
 		}
 		sys->disk_space = (uint64_t)fs.f_frsize * fs.f_bavail;
 	}
-
+    // 更新配置文件的值config.space，和sys->disk_spac保持一致
 	ret = set_node_space(sys->disk_space);
 out:
 	sd_debug("disk free space is %" PRIu64, sys->disk_space);

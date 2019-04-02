@@ -341,7 +341,7 @@ static void *worker_routine(void *arg)
 {
 	struct wq_info *wi = arg;
 	struct work *work;
-	int tid = gettid();
+	int tid = gettid();  // 获取线程id
 
 	set_thread_name(wi->name, (wi->tc != WQ_ORDERED));
 
@@ -364,7 +364,7 @@ retest:
 			sd_cond_wait(&wi->pending_cond, &wi->pending_lock);
 			goto retest;
 		}
-
+        // 取出任务
 		work = list_first_entry(&wi->q.pending_list,
 				       struct work, w_list);
 
@@ -372,12 +372,12 @@ retest:
 		sd_mutex_unlock(&wi->pending_lock);
 
 		tracepoint(work, do_work, wi, work);
-
+        // 执行请求，根据不同队列不同请求执行对应的处理函数
 		if (work->fn)
-			work->fn(work);
+			work->fn(work);  
 
 		sd_mutex_lock(&wi->finished_lock);
-		list_add_tail(&work->w_list, &wi->finished_list);
+		list_add_tail(&work->w_list, &wi->finished_list);  // 请求执行完成后加入到完成队列
 		sd_mutex_unlock(&wi->finished_lock);
 
 		eventfd_xwrite(efd, 1);
